@@ -6,6 +6,100 @@ import { body, validationResult } from 'express-validator';
 
 const router = express.Router();
 
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     CommunityPost:
+ *       type: object
+ *       properties:
+ *         _id:
+ *           type: string
+ *         userId:
+ *           $ref: '#/components/schemas/User'
+ *         question:
+ *           type: string
+ *           maxLength: 1000
+ *         category:
+ *           type: string
+ *           enum: [tech, business, social, health, education, entertainment, sports, other]
+ *         likes:
+ *           type: array
+ *           items:
+ *             type: object
+ *             properties:
+ *               userId:
+ *                 type: string
+ *               createdAt:
+ *                 type: string
+ *         comments:
+ *           type: array
+ *           items:
+ *             type: object
+ *             properties:
+ *               userId:
+ *                 type: string
+ *               text:
+ *                 type: string
+ *               replies:
+ *                 type: array
+ *               createdAt:
+ *                 type: string
+ *         isActive:
+ *           type: boolean
+ *         createdAt:
+ *           type: string
+ *         updatedAt:
+ *           type: string
+ */
+
+/**
+ * @swagger
+ * /api/community:
+ *   post:
+ *     tags: [Community]
+ *     summary: Create a community post
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - question
+ *               - category
+ *             properties:
+ *               question:
+ *                 type: string
+ *                 maxLength: 1000
+ *                 example: "What are the best practices for React development?"
+ *               category:
+ *                 type: string
+ *                 enum: [tech, business, social, health, education, entertainment, sports, other]
+ *                 example: "tech"
+ *     responses:
+ *       201:
+ *         description: Community post created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 post:
+ *                   $ref: '#/components/schemas/CommunityPost'
+ *       400:
+ *         description: Validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // Create community post
 router.post('/', authenticate, [
   body('question').notEmpty().isLength({ max: 1000 }).withMessage('Question is required and max 1000 characters'),
@@ -42,7 +136,7 @@ router.post('/', authenticate, [
 router.get('/', authenticate, async (req, res) => {
   try {
     const { page = 1, limit = 10, category, sort = 'recent' } = req.query;
-    
+
     let query = { isActive: true };
     if (category && category !== 'all') {
       query.category = category;
@@ -69,11 +163,11 @@ router.get('/', authenticate, async (req, res) => {
       postObj.isLiked = post.likes.some(like => like.userId._id.toString() === req.user._id.toString());
       postObj.likeCount = post.likes.length;
       postObj.commentCount = post.comments.length;
-      
+
       // Check if saved
       const user = req.user;
       postObj.isSaved = user.savedCommunityPosts?.includes(post._id) || false;
-      
+
       return postObj;
     });
 
@@ -86,6 +180,38 @@ router.get('/', authenticate, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/community/{postId}/like:
+ *   post:
+ *     tags: [Community]
+ *     summary: Like or unlike a community post
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Community post ID
+ *     responses:
+ *       200:
+ *         description: Post liked/unliked successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 isLiked:
+ *                   type: boolean
+ *                 likeCount:
+ *                   type: integer
+ */
 // Like community post
 router.post('/:postId/like', authenticate, async (req, res) => {
   try {
@@ -94,13 +220,13 @@ router.post('/:postId/like', authenticate, async (req, res) => {
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    const existingLike = post.likes.find(like => 
+    const existingLike = post.likes.find(like =>
       like.userId.toString() === req.user._id.toString()
     );
 
     if (existingLike) {
       // Unlike
-      post.likes = post.likes.filter(like => 
+      post.likes = post.likes.filter(like =>
         like.userId.toString() !== req.user._id.toString()
       );
       await post.save();
@@ -128,6 +254,49 @@ router.post('/:postId/like', authenticate, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/community/{postId}/comment:
+ *   post:
+ *     tags: [Community]
+ *     summary: Add a comment to a community post
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Community post ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - text
+ *             properties:
+ *               text:
+ *                 type: string
+ *                 maxLength: 500
+ *                 example: "Great question! Here's my perspective..."
+ *     responses:
+ *       200:
+ *         description: Comment added successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 comment:
+ *                   type: object
+ */
 // Add comment to community post
 router.post('/:postId/comment', authenticate, [
   body('text').notEmpty().isLength({ max: 500 }).withMessage('Comment text is required and max 500 characters')
@@ -204,6 +373,36 @@ router.post('/:postId/comment/:commentId/reply', authenticate, [
   }
 });
 
+/**
+ * @swagger
+ * /api/community/{postId}/save:
+ *   post:
+ *     tags: [Community]
+ *     summary: Save or unsave a community post
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Community post ID
+ *     responses:
+ *       200:
+ *         description: Post saved/unsaved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 isSaved:
+ *                   type: boolean
+ */
 // Save/Unsave community post
 router.post('/:postId/save', authenticate, async (req, res) => {
   try {
@@ -240,6 +439,33 @@ router.post('/:postId/save', authenticate, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/community/{postId}:
+ *   delete:
+ *     tags: [Community]
+ *     summary: Delete a community post (only creator can delete)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Community post ID
+ *     responses:
+ *       200:
+ *         description: Post deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *       403:
+ *         description: Access denied - not the creator
+ *       404:
+ *         description: Post not found
+ */
 // Delete community post (only creator can delete)
 router.delete('/:postId', authenticate, async (req, res) => {
   try {

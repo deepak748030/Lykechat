@@ -7,6 +7,27 @@ import { body, validationResult } from 'express-validator';
 
 const router = express.Router();
 
+/**
+ * @swagger
+ * /api/users/profile:
+ *   get:
+ *     tags: [Users]
+ *     summary: Get current user profile
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User profile retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 user:
+ *                   $ref: '#/components/schemas/User'
+ */
 // Get current user profile
 router.get('/profile', authenticate, async (req, res) => {
   try {
@@ -14,7 +35,7 @@ router.get('/profile', authenticate, async (req, res) => {
       .select('-__v')
       .populate('followers', 'username profileImage')
       .populate('following', 'username profileImage');
-    
+
     res.json({
       success: true,
       user
@@ -31,7 +52,7 @@ router.get('/:userId', authenticate, async (req, res) => {
       .select('-blockedUsers -__v')
       .populate('followers', 'username profileImage')
       .populate('following', 'username profileImage');
-    
+
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -50,6 +71,53 @@ router.get('/:userId', authenticate, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/users/profile:
+ *   put:
+ *     tags: [Users]
+ *     summary: Update user profile
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 minLength: 3
+ *                 maxLength: 30
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               bio:
+ *                 type: string
+ *                 maxLength: 150
+ *               location:
+ *                 type: string
+ *                 maxLength: 100
+ *               profession:
+ *                 type: string
+ *                 maxLength: 100
+ *               about:
+ *                 type: string
+ *                 maxLength: 500
+ *               website:
+ *                 type: string
+ *                 format: uri
+ *               instagramHandle:
+ *                 type: string
+ *                 maxLength: 50
+ *               profileImage:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Profile updated successfully
+ */
 // Update profile
 router.put('/profile', authenticate, upload.single('profileImage'), [
   body('username').optional().isLength({ min: 3, max: 30 }),
@@ -68,14 +136,14 @@ router.put('/profile', authenticate, upload.single('profileImage'), [
     }
 
     const updateData = { ...req.body };
-    
+
     if (req.file) {
       updateData.profileImage = `/uploads/profiles/${req.file.filename}`;
     }
 
     // Check if username is unique
     if (updateData.username) {
-      const existingUser = await User.findOne({ 
+      const existingUser = await User.findOne({
         username: updateData.username,
         _id: { $ne: req.user._id }
       });
@@ -100,6 +168,36 @@ router.put('/profile', authenticate, upload.single('profileImage'), [
   }
 });
 
+/**
+ * @swagger
+ * /api/users/{userId}/follow:
+ *   post:
+ *     tags: [Users]
+ *     summary: Follow or unfollow a user
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID to follow/unfollow
+ *     responses:
+ *       200:
+ *         description: User followed/unfollowed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 isFollowing:
+ *                   type: boolean
+ */
 // Follow/Unfollow user
 router.post('/:userId/follow', authenticate, async (req, res) => {
   try {
@@ -162,20 +260,49 @@ router.post('/:userId/follow', authenticate, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/users/{userId}/posts:
+ *   get:
+ *     tags: [Users]
+ *     summary: Get user's posts
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *     responses:
+ *       200:
+ *         description: User posts retrieved successfully
+ */
 // Get user's posts
 router.get('/:userId/posts', authenticate, async (req, res) => {
   try {
     const { page = 1, limit = 10 } = req.query;
-    
-    const posts = await Post.find({ 
+
+    const posts = await Post.find({
       userId: req.params.userId,
       isActive: true
     })
-    .select('-likes -comments -shares -reports')
-    .populate('userId', 'username profileImage')
-    .sort({ createdAt: -1 })
-    .limit(limit * 1)
-    .skip((page - 1) * limit);
+      .select('-likes -comments -shares -reports')
+      .populate('userId', 'username profileImage')
+      .sort({ createdAt: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
 
     res.json({
       success: true,
@@ -186,6 +313,25 @@ router.get('/:userId/posts', authenticate, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/users/{userId}/followers:
+ *   get:
+ *     tags: [Users]
+ *     summary: Get user's followers
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     responses:
+ *       200:
+ *         description: Followers retrieved successfully
+ */
 // Get followers
 router.get('/:userId/followers', authenticate, async (req, res) => {
   try {
@@ -218,13 +364,36 @@ router.get('/:userId/following', authenticate, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/users/suggestions/friends:
+ *   get:
+ *     tags: [Users]
+ *     summary: Get friend suggestions
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Friend suggestions retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 suggestions:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/User'
+ */
 // Get suggested friends
 router.get('/suggestions/friends', authenticate, async (req, res) => {
   try {
     const currentUser = await User.findById(req.user._id).select('following blockedUsers');
-    
+
     const suggestions = await User.find({
-      _id: { 
+      _id: {
         $nin: [
           ...currentUser.following,
           ...currentUser.blockedUsers,
@@ -232,8 +401,8 @@ router.get('/suggestions/friends', authenticate, async (req, res) => {
         ]
       }
     })
-    .select('username profileImage bio followers')
-    .limit(10);
+      .select('username profileImage bio followers')
+      .limit(10);
 
     res.json({
       success: true,
@@ -293,6 +462,29 @@ router.post('/:userId/block', authenticate, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/users/blocked/users:
+ *   get:
+ *     tags: [Users]
+ *     summary: Get blocked users list
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Blocked users retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 blockedUsers:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/User'
+ */
 // Get blocked users
 router.get('/blocked/users', authenticate, async (req, res) => {
   try {

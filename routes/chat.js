@@ -8,6 +8,77 @@ import { io } from '../server.js';
 
 const router = express.Router();
 
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     Chat:
+ *       type: object
+ *       properties:
+ *         _id:
+ *           type: string
+ *         participants:
+ *           type: array
+ *           items:
+ *             $ref: '#/components/schemas/User'
+ *         messages:
+ *           type: array
+ *           items:
+ *             type: object
+ *             properties:
+ *               senderId:
+ *                 type: string
+ *               text:
+ *                 type: string
+ *               messageType:
+ *                 type: string
+ *                 enum: [text, image, video, document]
+ *               media:
+ *                 type: object
+ *               status:
+ *                 type: string
+ *                 enum: [sent, delivered, seen]
+ *               createdAt:
+ *                 type: string
+ *         lastMessage:
+ *           type: object
+ *         unreadCount:
+ *           type: array
+ */
+
+/**
+ * @swagger
+ * /api/chat/start:
+ *   post:
+ *     tags: [Chat]
+ *     summary: Start or get existing chat with a user
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - recipientId
+ *             properties:
+ *               recipientId:
+ *                 type: string
+ *                 description: ID of the user to chat with
+ *     responses:
+ *       200:
+ *         description: Chat retrieved or created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 chat:
+ *                   $ref: '#/components/schemas/Chat'
+ */
 // Get or create chat
 router.post('/start', authenticate, [
   body('recipientId').notEmpty().withMessage('Recipient ID is required')
@@ -53,23 +124,46 @@ router.post('/start', authenticate, [
   }
 });
 
+/**
+ * @swagger
+ * /api/chat:
+ *   get:
+ *     tags: [Chat]
+ *     summary: Get user's chats
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Chats retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 chats:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Chat'
+ */
 // Get user's chats
 router.get('/', authenticate, async (req, res) => {
   try {
     const chats = await Chat.find({
       participants: req.user._id
     })
-    .populate('participants', 'username profileImage isOnline lastSeen')
-    .populate('lastMessage.senderId', 'username profileImage')
-    .sort({ 'lastMessage.timestamp': -1 });
+      .populate('participants', 'username profileImage isOnline lastSeen')
+      .populate('lastMessage.senderId', 'username profileImage')
+      .sort({ 'lastMessage.timestamp': -1 });
 
     // Filter out current user from participants and add unread count
     const chatsWithDetails = chats.map(chat => {
       const chatObj = chat.toObject();
-      chatObj.otherParticipant = chatObj.participants.find(p => 
+      chatObj.otherParticipant = chatObj.participants.find(p =>
         p._id.toString() !== req.user._id.toString()
       );
-      chatObj.unreadCount = chatObj.unreadCount.find(uc => 
+      chatObj.unreadCount = chatObj.unreadCount.find(uc =>
         uc.userId.toString() === req.user._id.toString()
       )?.count || 0;
       return chatObj;
@@ -84,11 +178,39 @@ router.get('/', authenticate, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/chat/{chatId}/messages:
+ *   get:
+ *     tags: [Chat]
+ *     summary: Get chat messages with pagination
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: chatId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *     responses:
+ *       200:
+ *         description: Messages retrieved successfully
+ */
 // Get chat messages
 router.get('/:chatId/messages', authenticate, async (req, res) => {
   try {
     const { page = 1, limit = 50 } = req.query;
-    
+
     const chat = await Chat.findById(req.params.chatId)
       .populate('participants', 'username profileImage')
       .populate('messages.senderId', 'username profileImage');
@@ -106,7 +228,7 @@ router.get('/:chatId/messages', authenticate, async (req, res) => {
     const totalMessages = chat.messages.length;
     const startIndex = Math.max(0, totalMessages - (page * limit));
     const endIndex = totalMessages - ((page - 1) * limit);
-    
+
     const messages = chat.messages.slice(startIndex, endIndex).reverse();
 
     // Mark messages as seen
@@ -128,13 +250,47 @@ router.get('/:chatId/messages', authenticate, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/chat/{chatId}/message:
+ *   post:
+ *     tags: [Chat]
+ *     summary: Send a message in chat
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: chatId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               text:
+ *                 type: string
+ *                 maxLength: 1000
+ *               messageType:
+ *                 type: string
+ *                 enum: [text, image, video, document]
+ *                 default: text
+ *               media:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Message sent successfully
+ */
 // Send message
 router.post('/:chatId/message', authenticate, upload.single('media'), [
   body('text').optional().isLength({ max: 1000 }).withMessage('Message text max 1000 characters')
 ], async (req, res) => {
   try {
     const { text, messageType = 'text' } = req.body;
-    
+
     if (!text && !req.file) {
       return res.status(400).json({ message: 'Message text or media is required' });
     }
@@ -163,8 +319,8 @@ router.post('/:chatId/message', authenticate, upload.single('media'), [
         url: `/uploads/chat/${req.file.filename}`,
         filename: req.file.originalname
       };
-      message.messageType = req.file.mimetype.startsWith('image/') ? 'image' : 
-                           req.file.mimetype.startsWith('video/') ? 'video' : 'document';
+      message.messageType = req.file.mimetype.startsWith('image/') ? 'image' :
+        req.file.mimetype.startsWith('video/') ? 'video' : 'document';
     }
 
     chat.messages.push(message);
@@ -187,7 +343,7 @@ router.post('/:chatId/message', authenticate, upload.single('media'), [
     await chat.populate('messages.senderId', 'username profileImage');
 
     // Emit message to other participants via Socket.io
-    const otherParticipants = chat.participants.filter(p => 
+    const otherParticipants = chat.participants.filter(p =>
       p._id.toString() !== req.user._id.toString()
     );
 
@@ -209,13 +365,48 @@ router.post('/:chatId/message', authenticate, upload.single('media'), [
   }
 });
 
+/**
+ * @swagger
+ * /api/chat/{chatId}/message/{messageId}:
+ *   delete:
+ *     tags: [Chat]
+ *     summary: Delete a message
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: chatId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: messageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - deleteFor
+ *             properties:
+ *               deleteFor:
+ *                 type: string
+ *                 enum: [me, everyone]
+ *     responses:
+ *       200:
+ *         description: Message deleted successfully
+ */
 // Delete message
 router.delete('/:chatId/message/:messageId', authenticate, [
   body('deleteFor').isIn(['me', 'everyone']).withMessage('Delete for must be "me" or "everyone"')
 ], async (req, res) => {
   try {
     const { deleteFor } = req.body;
-    
+
     const chat = await Chat.findById(req.params.chatId);
     if (!chat) {
       return res.status(404).json({ message: 'Chat not found' });
@@ -253,6 +444,29 @@ router.delete('/:chatId/message/:messageId', authenticate, [
   }
 });
 
+/**
+ * @swagger
+ * /api/chat/{chatId}/message/{messageId}/pin:
+ *   post:
+ *     tags: [Chat]
+ *     summary: Pin or unpin a message
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: chatId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: messageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Message pinned/unpinned successfully
+ */
 // Pin/Unpin message
 router.post('/:chatId/message/:messageId/pin', authenticate, async (req, res) => {
   try {
@@ -279,13 +493,49 @@ router.post('/:chatId/message/:messageId/pin', authenticate, async (req, res) =>
   }
 });
 
+/**
+ * @swagger
+ * /api/chat/{chatId}/message/{messageId}/forward:
+ *   post:
+ *     tags: [Chat]
+ *     summary: Forward a message to other chats
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: chatId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: messageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - targetChatIds
+ *             properties:
+ *               targetChatIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Message forwarded successfully
+ */
 // Forward message
 router.post('/:chatId/message/:messageId/forward', authenticate, [
   body('targetChatIds').isArray().withMessage('Target chat IDs must be an array')
 ], async (req, res) => {
   try {
     const { targetChatIds } = req.body;
-    
+
     const sourceChat = await Chat.findById(req.params.chatId);
     if (!sourceChat) {
       return res.status(404).json({ message: 'Source chat not found' });

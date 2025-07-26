@@ -8,6 +8,50 @@ import { body, validationResult } from 'express-validator';
 
 const router = express.Router();
 
+/**
+ * @swagger
+ * /api/posts:
+ *   post:
+ *     tags: [Posts]
+ *     summary: Create a new post with media upload
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               description:
+ *                 type: string
+ *                 maxLength: 2000
+ *                 example: "Beautiful sunset today!"
+ *               type:
+ *                 type: string
+ *                 enum: [public, private, followers]
+ *                 default: public
+ *               media:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *                 description: Images or videos (max 10 files)
+ *     responses:
+ *       201:
+ *         description: Post created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 post:
+ *                   $ref: '#/components/schemas/Post'
+ */
 // Create post
 router.post('/', authenticate, upload.array('media', 10), [
   body('description').optional().isLength({ max: 2000 }),
@@ -67,6 +111,42 @@ router.post('/', authenticate, upload.array('media', 10), [
   }
 });
 
+/**
+ * @swagger
+ * /api/posts/feed:
+ *   get:
+ *     tags: [Posts]
+ *     summary: Get home feed posts with pagination
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of posts per page
+ *     responses:
+ *       200:
+ *         description: Feed posts retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 posts:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Post'
+ */
 // Get home feed posts
 router.get('/feed', authenticate, async (req, res) => {
   try {
@@ -86,13 +166,13 @@ router.get('/feed', authenticate, async (req, res) => {
         { isActive: true }
       ]
     })
-    .populate('userId', 'username profileImage isVerified')
-    .populate('likes.userId', 'username profileImage')
-    .populate('comments.userId', 'username profileImage')
-    .populate('comments.replies.userId', 'username profileImage')
-    .sort({ createdAt: -1 })
-    .limit(limit * 1)
-    .skip((page - 1) * limit);
+      .populate('userId', 'username profileImage isVerified')
+      .populate('likes.userId', 'username profileImage')
+      .populate('comments.userId', 'username profileImage')
+      .populate('comments.replies.userId', 'username profileImage')
+      .sort({ createdAt: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
 
     // Add interaction status for current user
     const postsWithStatus = posts.map(post => {
@@ -113,6 +193,36 @@ router.get('/feed', authenticate, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/posts/{postId}:
+ *   get:
+ *     tags: [Posts]
+ *     summary: Get a specific post by ID
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Post ID
+ *     responses:
+ *       200:
+ *         description: Post retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 post:
+ *                   $ref: '#/components/schemas/Post'
+ *       404:
+ *         description: Post not found
+ */
 // Get post by ID
 router.get('/:postId', authenticate, async (req, res) => {
   try {
@@ -120,10 +230,10 @@ router.get('/:postId', authenticate, async (req, res) => {
       _id: req.params.postId,
       isActive: true
     })
-    .populate('userId', 'username profileImage isVerified')
-    .populate('likes.userId', 'username profileImage')
-    .populate('comments.userId', 'username profileImage')
-    .populate('comments.replies.userId', 'username profileImage');
+      .populate('userId', 'username profileImage isVerified')
+      .populate('likes.userId', 'username profileImage')
+      .populate('comments.userId', 'username profileImage')
+      .populate('comments.replies.userId', 'username profileImage');
 
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
@@ -150,6 +260,38 @@ router.get('/:postId', authenticate, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/posts/{postId}/like:
+ *   post:
+ *     tags: [Posts]
+ *     summary: Like or unlike a post
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Post ID
+ *     responses:
+ *       200:
+ *         description: Post liked/unliked successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 isLiked:
+ *                   type: boolean
+ *                 likeCount:
+ *                   type: integer
+ */
 // Like/Unlike post
 router.post('/:postId/like', authenticate, async (req, res) => {
   try {
@@ -158,13 +300,13 @@ router.post('/:postId/like', authenticate, async (req, res) => {
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    const existingLike = post.likes.find(like => 
+    const existingLike = post.likes.find(like =>
       like.userId.toString() === req.user._id.toString()
     );
 
     if (existingLike) {
       // Unlike
-      post.likes = post.likes.filter(like => 
+      post.likes = post.likes.filter(like =>
         like.userId.toString() !== req.user._id.toString()
       );
       await post.save();
@@ -254,6 +396,31 @@ router.post('/:postId/comment', authenticate, [
   }
 });
 
+/**
+ * @swagger
+ * /api/posts/{postId}/comment/{commentId}/like:
+ *   post:
+ *     tags: [Posts]
+ *     summary: Like or unlike a comment
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Post ID
+ *       - in: path
+ *         name: commentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Comment ID
+ *     responses:
+ *       200:
+ *         description: Comment liked/unliked successfully
+ */
 // Like comment
 router.post('/:postId/comment/:commentId/like', authenticate, async (req, res) => {
   try {
@@ -267,13 +434,13 @@ router.post('/:postId/comment/:commentId/like', authenticate, async (req, res) =
       return res.status(404).json({ message: 'Comment not found' });
     }
 
-    const existingLike = comment.likes.find(like => 
+    const existingLike = comment.likes.find(like =>
       like.userId.toString() === req.user._id.toString()
     );
 
     if (existingLike) {
       // Unlike
-      comment.likes = comment.likes.filter(like => 
+      comment.likes = comment.likes.filter(like =>
         like.userId.toString() !== req.user._id.toString()
       );
     } else {
@@ -302,7 +469,7 @@ router.post('/:postId/share', authenticate, async (req, res) => {
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    const existingShare = post.shares.find(share => 
+    const existingShare = post.shares.find(share =>
       share.userId.toString() === req.user._id.toString()
     );
 
@@ -321,6 +488,40 @@ router.post('/:postId/share', authenticate, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/posts/{postId}/report:
+ *   post:
+ *     tags: [Posts]
+ *     summary: Report a post
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Post ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - reason
+ *             properties:
+ *               reason:
+ *                 type: string
+ *                 example: "inappropriate_content"
+ *               description:
+ *                 type: string
+ *                 example: "This post contains inappropriate content"
+ *     responses:
+ *       200:
+ *         description: Post reported successfully
+ */
 // Report post
 router.post('/:postId/report', authenticate, [
   body('reason').notEmpty().withMessage('Reason is required')
@@ -332,7 +533,7 @@ router.post('/:postId/report', authenticate, [
     }
 
     const Report = (await import('../models/Report.js')).default;
-    
+
     const existingReport = await Report.findOne({
       reportedBy: req.user._id,
       reportedPost: req.params.postId

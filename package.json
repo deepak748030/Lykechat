@@ -6,12 +6,20 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js",
+    "dev": "nodemon --ext js,mjs,cjs,json server.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
   },
-  "keywords": ["social-media", "chat", "services", "nodejs", "express", "mongodb", "admin-dashboard"],
+  "keywords": [
+    "social-media",
+    "chat",
+    "services",
+    "nodejs",
+    "express",
+    "mongodb",
+    "admin-dashboard"
+  ],
   "author": "Lykechat Team",
   "license": "MIT",
   "dependencies": {

@@ -15,10 +15,12 @@ const options = {
     },
     servers: [
       {
-        url: process.env.NODE_ENV === 'production' 
-          ? 'https://api.lykechat.app' 
-          : `http://localhost:${process.env.PORT || 3000}`,
-        description: process.env.NODE_ENV === 'production' ? 'Production server' : 'Development server'
+        url: 'https://lykechat.onrender.com',
+        description: 'Production server'
+      },
+      {
+        url: `http://localhost:${process.env.PORT || 3000}`,
+        description: 'Development server'
       }
     ],
     components: {

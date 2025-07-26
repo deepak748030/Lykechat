@@ -47,6 +47,36 @@ router.post('/user', authenticate, [
   }
 });
 
+/**
+ * @swagger
+ * /api/reports/post:
+ *   post:
+ *     tags: [Reports]
+ *     summary: Report a post
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - reportedPostId
+ *               - reason
+ *             properties:
+ *               reportedPostId:
+ *                 type: string
+ *               reason:
+ *                 type: string
+ *                 enum: [spam, harassment, inappropriate_content, fake_profile, copyright, other]
+ *               description:
+ *                 type: string
+ *                 maxLength: 500
+ *     responses:
+ *       200:
+ *         description: Post reported successfully
+ */
 // Report post
 router.post('/post', authenticate, [
   body('reportedPostId').notEmpty().withMessage('Reported post ID is required'),
@@ -89,6 +119,36 @@ router.post('/post', authenticate, [
   }
 });
 
+/**
+ * @swagger
+ * /api/reports/service:
+ *   post:
+ *     tags: [Reports]
+ *     summary: Report a service
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - reportedServiceId
+ *               - reason
+ *             properties:
+ *               reportedServiceId:
+ *                 type: string
+ *               reason:
+ *                 type: string
+ *                 enum: [spam, harassment, inappropriate_content, fake_profile, copyright, other]
+ *               description:
+ *                 type: string
+ *                 maxLength: 500
+ *     responses:
+ *       200:
+ *         description: Service reported successfully
+ */
 // Report service
 router.post('/service', authenticate, [
   body('reportedServiceId').notEmpty().withMessage('Reported service ID is required'),
@@ -131,6 +191,29 @@ router.post('/service', authenticate, [
   }
 });
 
+/**
+ * @swagger
+ * /api/reports/my-reports:
+ *   get:
+ *     tags: [Reports]
+ *     summary: Get user's submitted reports
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User reports retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 reports:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Report'
+ */
 // Get user's reports (optional admin feature)
 router.get('/my-reports', authenticate, async (req, res) => {
   try {

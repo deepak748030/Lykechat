@@ -8,7 +8,7 @@ const router = express.Router();
 router.get('/', authenticate, async (req, res) => {
   try {
     const { page = 1, limit = 20 } = req.query;
-    
+
     const notifications = await Notification.find({ userId: req.user._id })
       .populate('fromUserId', 'username profileImage')
       .populate('postId', 'description media')
@@ -32,6 +32,31 @@ router.get('/', authenticate, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/notifications/{notificationId}/read:
+ *   put:
+ *     tags: [Notifications]
+ *     summary: Mark a notification as read
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: notificationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Notification ID
+ *     responses:
+ *       200:
+ *         description: Notification marked as read
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *       404:
+ *         description: Notification not found
+ */
 // Mark notification as read
 router.put('/:notificationId/read', authenticate, async (req, res) => {
   try {
@@ -54,6 +79,22 @@ router.put('/:notificationId/read', authenticate, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/notifications/read/all:
+ *   put:
+ *     tags: [Notifications]
+ *     summary: Mark all notifications as read
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: All notifications marked as read
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ */
 // Mark all notifications as read
 router.put('/read/all', authenticate, async (req, res) => {
   try {
@@ -71,6 +112,31 @@ router.put('/read/all', authenticate, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/notifications/{notificationId}:
+ *   delete:
+ *     tags: [Notifications]
+ *     summary: Delete a notification
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: notificationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Notification ID
+ *     responses:
+ *       200:
+ *         description: Notification deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *       404:
+ *         description: Notification not found
+ */
 // Delete notification
 router.delete('/:notificationId', authenticate, async (req, res) => {
   try {
